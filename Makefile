@@ -7,13 +7,14 @@ help:
 	@echo "  make lint                   Run all linters, fail on any warning"
 	@echo "  make fix-lint               Run all linters with auto-fix options"
 	@echo "  make build                  Build the site"
+	@echo "  make open                   Open the site in the browser"
 	@echo "  make dev                    Preview the site"
 	@echo "  make copy-duckdb            Copy DuckDB files to the public directory"
 	@echo "  make clean                  Delete node packages and lock"
 	@echo "  make info                   Show package directory tree (excluding node_modules)"
 
 .PHONY: all
-all: install fix-lint lint build dev
+all: install fix-lint lint build open dev
 
 .PHONY: install
 install:
@@ -30,6 +31,10 @@ lint:
 .PHONY: build
 build:
 	npm run build
+
+.PHONY: open
+open:
+	open http://localhost:3000
 
 .PHONY: dev
 dev:
