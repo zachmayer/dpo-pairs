@@ -1,95 +1,56 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+'use client';
+
+import { useState, useEffect } from 'react';
+import DataUploader from '@/components/DataUploader';
+import ResponsePairViewer from '@/components/ResponsePairViewer';
+import DownloadButton from '@/components/DownloadButton';
+import { initializeDB, loadDataIntoDB, getRandomPair, savePairResult, getResults } from '@/lib/dataHandler';
+import type { AsyncDuckDB } from '@duckdb/duckdb-wasm';
+import styles from './page.module.css';
 
 export default function Home() {
-  return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol>
-          <li>
-            Get started by editing <code>src/app/page.tsx</code>.
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [db, setDB] = useState<AsyncDuckDB | null>(null);
+  const [currentPair, setCurrentPair] = useState<[string, string] | null>(null);
+  const [results, setResults] = useState<Array<{ accepted: string, rejected: string }>>([]);
 
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.secondary}
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className={styles.footer}>
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+  useEffect(() => {
+    initializeDB().then(setDB);
+  }, []);
+
+  const handleDataUpload = async (data: string[][]) => {
+    if (db) {
+      await loadDataIntoDB(db, data);
+      loadNextPair();
+    }
+  };
+
+  const loadNextPair = async () => {
+    if (db) {
+      const pair = await getRandomPair(db);
+      setCurrentPair(pair);
+    }
+  };
+
+  const handlePreference = async (preferredIndex: number) => {
+    if (db && currentPair) {
+      await savePairResult(db, currentPair, preferredIndex);
+      const updatedResults = await getResults(db);
+      setResults(updatedResults);
+      loadNextPair();
+    }
+  };
+
+  return (
+    <main className={styles['main']}>
+      <h1 className={styles['title']}>DPO Review App</h1>
+      <DataUploader onUpload={handleDataUpload} />
+      {currentPair && (
+        <ResponsePairViewer
+          pair={currentPair}
+          onPreference={handlePreference}
+        />
+      )}
+      <DownloadButton results={results} />
+    </main>
   );
 }

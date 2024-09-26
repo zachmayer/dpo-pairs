@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "fix-lint": "next lint --fix",
-    "lint": "next lint"
+    "lint": "next lint && tsc --noEmit",
+    "copy-duckdb": "node scripts/copyDuckDBFiles.mjs"
   },
   "dependencies": {
     "@duckdb/duckdb-wasm": "^1.28.1-dev106.0",
@@ -19,10 +20,12 @@
   },
   "devDependencies": {
     "@types/node": "^20",
+    "@types/papaparse": "^5.3.14",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "eslint": "^8",
     "eslint-config-next": "14.2.13",
+    "eslint-config-prettier": "^9.1.0",
     "typescript": "^5"
   }
 }

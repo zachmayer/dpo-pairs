@@ -27,11 +27,19 @@
   }
 }
 
+.title {
+  margin-bottom: 2rem;
+  font-size: 2.5rem;
+  font-weight: 600;
+}
+
 .main {
   display: flex;
   flex-direction: column;
-  gap: 32px;
-  grid-row-start: 2;
+  justify-content: center;
+  align-items: center;
+  padding: 6rem;
+  min-height: 100vh;
 }
 
 .main ol {
