@@ -3,38 +3,88 @@ import * as duckdb from '@duckdb/duckdb-wasm';
 
 let db: AsyncDuckDB | null = null;
 
-export async function initializeDB(): Promise<AsyncDuckDB> {
-  if (db) return db;
+export async function initializeDB(forceFresh: boolean = false): Promise<{ db: AsyncDuckDB, status: { responsesCount: number, resultsCount: number } }> {
+  if (!db) {
+    try {
+      const DUCKDB_BUNDLES: duckdb.DuckDBBundles = {
+        mvp: {
+          mainModule: '/duckdb-mvp.wasm',
+          mainWorker: '/duckdb-browser-mvp.worker.js',
+        },
+        eh: {
+          mainModule: '/duckdb-eh.wasm',
+          mainWorker: '/duckdb-browser-eh.worker.js',
+        },
+      };
+
+      const bundle = await duckdb.selectBundle(DUCKDB_BUNDLES);
+      const worker = new Worker(bundle.mainWorker!);
+      const logger = new duckdb.ConsoleLogger();
+      db = new AsyncDuckDB(logger, worker);
+      await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+    } catch (error) {
+      console.error('Failed to initialize DuckDB:', error);
+      throw error;
+    }
+  }
+
+  const conn = await db.connect();
 
   try {
-    const DUCKDB_BUNDLES: duckdb.DuckDBBundles = {
-      mvp: {
-        mainModule: '/duckdb-mvp.wasm',
-        mainWorker: '/duckdb-browser-mvp.worker.js',
-      },
-      eh: {
-        mainModule: '/duckdb-eh.wasm',
-        mainWorker: '/duckdb-browser-eh.worker.js',
-      },
-    };
+    if (forceFresh) {
+      await conn.query(`
+        DROP TABLE IF EXISTS responses;
+        DROP TABLE IF EXISTS results;
+      `);
+    }
 
-    const bundle = await duckdb.selectBundle(DUCKDB_BUNDLES);
-    const worker = new Worker(bundle.mainWorker!);
-    const logger = new duckdb.ConsoleLogger();
-    db = new AsyncDuckDB(logger, worker);
-    await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
-
-    const conn = await db.connect();
+    // Check if tables exist, create them if they don't
     await conn.query(`
-      CREATE TABLE responses (id INTEGER, response TEXT);
-      CREATE TABLE results (accepted TEXT, rejected TEXT);
+      CREATE TABLE IF NOT EXISTS responses (id INTEGER, response TEXT);
+      CREATE TABLE IF NOT EXISTS results (accepted TEXT, rejected TEXT);
     `);
-    await conn.close();
 
-    return db;
-  } catch (error) {
-    console.error('Failed to initialize DuckDB:', error);
-    throw error;
+    const status = await getDataStatusInternal(conn);
+    return { db, status };
+  } finally {
+    await conn.close();
+  }
+}
+
+async function getDataStatusInternal(conn: duckdb.AsyncDuckDBConnection): Promise<{ responsesCount: number, resultsCount: number }> {
+  const responsesCount = await conn.query('SELECT COUNT(*) as count FROM responses');
+  const resultsCount = await conn.query('SELECT COUNT(*) as count FROM results');
+  return {
+    responsesCount: responsesCount.toArray()[0].count,
+    resultsCount: resultsCount.toArray()[0].count
+  };
+}
+
+export async function getDataStatus(): Promise<{ responsesCount: number, resultsCount: number }> {
+  if (!db) {
+    const { status } = await initializeDB();
+    return status;
+  }
+  
+  const conn = await db.connect();
+  try {
+    return await getDataStatusInternal(conn);
+  } finally {
+    await conn.close();
+  }
+}
+
+export async function clearAllData(): Promise<void> {
+  if (!db) throw new Error('Database not initialized');
+  
+  const conn = await db.connect();
+  try {
+    await conn.query(`
+      DELETE FROM responses;
+      DELETE FROM results;
+    `);
+  } finally {
+    await conn.close();
   }
 }
 
@@ -75,7 +125,10 @@ export async function getRandomPair(db: AsyncDuckDB): Promise<[string, string]> 
       ORDER BY RANDOM()
       LIMIT 2
     `);
-    const responses = result.toArray().map((row: { response: string }) => row.response);
+    const responses = result.toArray().map(row => row.response.toString());
+    if (responses.length < 2) {
+      throw new Error('Not enough responses in the database');
+    }
     return [responses[0], responses[1]];
   } finally {
     await conn.close();
