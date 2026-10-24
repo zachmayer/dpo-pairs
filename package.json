@@ -13,7 +13,7 @@
   "dependencies": {
     "@duckdb/duckdb-wasm": "^1.28.1-dev106.0",
     "file-saver": "^2.0.5",
-    "next": "14.2.13",
+    "next": "16.4.3",
     "papaparse": "^5.4.1",
     "react": "^18",
     "react-dom": "^18"
@@ -24,7 +24,7 @@
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "eslint": "^8",
-    "eslint-config-next": "14.2.13",
+    "eslint-config-next": "16.4.3",
     "eslint-config-prettier": "^9.1.0",
     "typescript": "^5"
   }
