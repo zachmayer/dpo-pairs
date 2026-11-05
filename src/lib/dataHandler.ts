@@ -125,7 +125,7 @@ export async function getRandomPair(db: AsyncDuckDB): Promise<[string, string]> 
       ORDER BY RANDOM()
       LIMIT 2
     `);
-    const responses = result.toArray().map(row => row.response.toString());
+    const responses = result.toArray().map((row: { response: string }) => row.response.toString());
     if (responses.length < 2) {
       throw new Error('Not enough responses in the database');
     }
