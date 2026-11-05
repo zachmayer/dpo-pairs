@@ -35,6 +35,14 @@ jobs:
       # next lint, then tsc --noEmit.
       - run: npm run lint
       - run: npm run build
+      # The DuckDB wasm and worker files in public/ are copied by hand from the
+      # installed @duckdb/duckdb-wasm. A bump that leaves them stale still builds
+      # but breaks in the browser, so it fails here instead of merging.
+      - name: public/ DuckDB assets match the installed package
+        run: |
+          npm run copy-duckdb
+          git status --porcelain public/
+          test -z "$(git status --porcelain public/)"
 
   # Dependabot's PRs merge themselves. This job checks nothing out, so the PR's
   # code never runs with this write token, and --match-head-commit refuses a
