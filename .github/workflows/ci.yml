@@ -1,0 +1,57 @@
+name: ci
+
+# Two checks: the npm lockfile still installs, lints, type-checks, and builds,
+# and zizmor finds no workflow security flaws. Dependabot's PRs merge once they pass.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_TELEMETRY_DISABLED: 1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # https://docs.zizmor.sh
+      # Audits every workflow in the repo and dependabot.yml for security
+      # flaws. The action pins zizmor itself, so new rules arrive only with a
+      # Dependabot bump, which merges only once they pass.
+      - uses: zizmorcore/zizmor-action@53290badfa369cb0bf7ad16342cb62c2fa47ac7b # v0.8.0
+        with:
+          min-severity: medium
+          advanced-security: false
+          annotations: true
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+      - run: npm ci
+      # next lint, then tsc --noEmit.
+      - run: npm run lint
+      - run: npm run build
+
+  # Dependabot's PRs merge themselves. This job checks nothing out, so the PR's
+  # code never runs with this write token, and --match-head-commit refuses a
+  # head that moved after this run saw it.
+  merge-dependabot:
+    needs: [check]
+    # Only someone with write access can push to Dependabot's branch, and they
+    # can push to main anyway. Accepted: reopening a closed Dependabot PR, which
+    # Triage allows, gets it merged once the checks pass.
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - run: gh pr merge --squash --match-head-commit "$PR_HEAD_SHA" "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
