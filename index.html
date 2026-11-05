@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>DPO pairs</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 1rem; }
+    #pair { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .response { white-space: pre-wrap; border: 1px solid #ccc; padding: 1rem; max-height: 75vh; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h1>DPO pairs</h1>
+  <p>
+    <input type="file" id="file" accept=".csv">
+    <button id="download" disabled>Download pairs</button>
+    <span id="status">Pick a CSV with a "response" column.</span>
+  </p>
+  <div id="pair" hidden>
+    <div><button id="pickA">1: A is better</button> <button id="skip">s: skip</button><div class="response" id="textA"></div></div>
+    <div><button id="pickB">2: B is better</button><div class="response" id="textB"></div></div>
+  </div>
+  <script src="dpo.js"></script>
+  <script>
+    const fileInput = document.getElementById("file");
+    const downloadButton = document.getElementById("download");
+    const statusText = document.getElementById("status");
+    const pairView = document.getElementById("pair");
+    const textA = document.getElementById("textA");
+    const textB = document.getElementById("textB");
+
+    let responses = [];
+    let shown = null;
+    const pairs = [];
+
+    function showNextPair() {
+      shown = pickPair(responses.length);
+      textA.textContent = responses[shown[0]];
+      textB.textContent = responses[shown[1]];
+      statusText.textContent = `${responses.length} responses, ${pairs.length} pairs recorded`;
+    }
+
+    // winner: 0 for A, 1 for B, null to skip.
+    function choose(winner) {
+      if (shown === null) return;
+      if (winner !== null) {
+        pairs.push([responses[shown[winner]], responses[shown[1 - winner]]]);
+        downloadButton.disabled = false;
+      }
+      showNextPair();
+    }
+
+    fileInput.addEventListener("change", async () => {
+      if (fileInput.files.length === 0) return;
+      let loaded;
+      try {
+        loaded = readResponses(await fileInput.files[0].text());
+      } catch (error) {
+        statusText.textContent = error.message;
+        return;
+      }
+      if (loaded.length < 2) {
+        statusText.textContent = `Need at least 2 responses; found ${loaded.length}.`;
+        return;
+      }
+      responses = loaded;
+      pairView.hidden = false;
+      showNextPair();
+    });
+
+    document.getElementById("pickA").addEventListener("click", () => choose(0));
+    document.getElementById("pickB").addEventListener("click", () => choose(1));
+    document.getElementById("skip").addEventListener("click", () => choose(null));
+    document.addEventListener("keydown", (event) => {
+      if (event.repeat) return;
+      if (event.key === "1") choose(0);
+      if (event.key === "2") choose(1);
+      if (event.key === "s") choose(null);
+    });
+
+    downloadButton.addEventListener("click", () => {
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(new Blob([pairsToCsv(pairs)], { type: "text/csv" }));
+      link.download = "dpo_pairs.csv";
+      link.click();
+    });
+  </script>
+</body>
+</html>
